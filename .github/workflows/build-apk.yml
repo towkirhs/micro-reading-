@@ -12,6 +12,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -26,36 +29,43 @@ jobs:
           cache: true
 
       - name: Generate and patch the Android project
-        run: bash tools/setup_android.sh
+        run: bash tools/setup_android.sh 2>&1 | tee setup.log
 
       - name: Install packages
-        run: flutter pub get
+        run: flutter pub get 2>&1 | tee pub.log
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee analyze.log
 
       - name: Test
-        run: flutter test
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee test.log
 
       - name: Build release APK
         run: |
           set -o pipefail
           flutter build apk --release 2>&1 | tee build.log
 
-      - name: Surface build errors as annotations
+      - name: Surface errors as annotations
         if: failure()
         run: |
           python3 - <<'PY'
           import pathlib
-          p = pathlib.Path("build.log")
-          lines = p.read_text(errors="replace").splitlines() if p.exists() else ["no build.log"]
           def esc(s):
               return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          wrong = [i for i, l in enumerate(lines) if "What went wrong" in l or "Error:" in l or "error:" in l]
-          if wrong:
-              i = wrong[0]
-              print("::error title=First error::" + esc("\n".join(lines[max(0, i - 3):i + 25])))
-          print("::error title=Log tail::" + esc("\n".join(lines[-40:])))
+          for name in ("setup", "pub", "analyze", "test", "build"):
+              p = pathlib.Path(name + ".log")
+              if not p.exists():
+                  continue
+              lines = p.read_text(errors="replace").splitlines()
+              hits = [i for i, l in enumerate(lines) if "What went wrong" in l or " error " in l.lower() or "Error:" in l or "[E]" in l or "FAILED" in l]
+              if hits:
+                  i = hits[0]
+                  print(f"::error title={name}: first error::" + esc("\n".join(lines[max(0, i - 3):i + 25])))
+              print(f"::error title={name}: log tail::" + esc("\n".join(lines[-30:])))
           PY
 
       - name: Name the APK

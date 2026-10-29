@@ -99,9 +99,54 @@ def patch_gradle() -> None:
         fail("gradle patch failed")
 
 
+ROOT_KTS_SNIPPET = """\
+// Added by tools/patch_android.py: some plugins are compiled against an older
+// Android API than flutter_plugin_android_lifecycle requires. Compile them
+// against a newer one. Must come before any subproject is evaluated.
+subprojects {
+    afterEvaluate {
+        val androidExt = extensions.findByName("android")
+        if (androidExt != null && project.name != "app") {
+            androidExt.withGroovyBuilder { "compileSdkVersion"(36) }
+        }
+    }
+}
+
+"""
+
+ROOT_GROOVY_SNIPPET = """\
+// Added by tools/patch_android.py: see build.gradle.kts variant for why.
+subprojects {
+    afterEvaluate { p ->
+        if (p.name != 'app' && p.hasProperty('android')) {
+            p.android { compileSdkVersion 36 }
+        }
+    }
+}
+
+"""
+
+
+def patch_root_gradle() -> None:
+    kts = ANDROID / "build.gradle.kts"
+    groovy = ANDROID / "build.gradle"
+    if kts.exists():
+        target, snippet = kts, ROOT_KTS_SNIPPET
+    elif groovy.exists():
+        target, snippet = groovy, ROOT_GROOVY_SNIPPET
+    else:
+        fail("neither android/build.gradle.kts nor android/build.gradle found")
+    text = target.read_text()
+    if "compileSdkVersion" not in text:
+        target.write_text(snippet + text)
+    if "compileSdkVersion" not in target.read_text():
+        fail("root gradle patch failed")
+
+
 if __name__ == "__main__":
     if not MANIFEST.exists():
         fail(f"{MANIFEST} not found. Run tools/setup_android.sh instead.")
     patch_manifest()
     patch_gradle()
+    patch_root_gradle()
     print("android/ patched for notifications.")
