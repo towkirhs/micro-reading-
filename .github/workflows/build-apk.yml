@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -38,7 +38,25 @@ jobs:
         run: flutter test
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee build.log
+
+      - name: Surface build errors as annotations
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("build.log")
+          lines = p.read_text(errors="replace").splitlines() if p.exists() else ["no build.log"]
+          def esc(s):
+              return s.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          wrong = [i for i, l in enumerate(lines) if "What went wrong" in l or "Error:" in l or "error:" in l]
+          if wrong:
+              i = wrong[0]
+              print("::error title=First error::" + esc("\n".join(lines[max(0, i - 3):i + 25])))
+          print("::error title=Log tail::" + esc("\n".join(lines[-40:])))
+          PY
 
       - name: Name the APK
         run: cp build/app/outputs/flutter-apk/app-release.apk micro-reader.apk
