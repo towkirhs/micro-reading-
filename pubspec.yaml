@@ -1,0 +1,28 @@
+name: micro_reader
+description: Hands you your novel in tiny pieces, at random moments, through notifications.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  archive: ^3.6.1
+  html: ^0.15.4
+  xml: ^6.5.0
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  file_picker: ^8.1.2
+  flutter_local_notifications: ^19.0.0
+  timezone: ^0.10.0
+  flutter_timezone: ">=4.0.0 <6.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
